@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3f;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --cloud: #38b2ff;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --green: #4ade80;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated bg */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(ellipse at 20% 20%, rgba(108,99,255,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(56,178,255,0.05) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+    animation: bgPulse 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes bgPulse {
+    from { transform: scale(1) rotate(0deg); }
+    to { transform: scale(1.1) rotate(3deg); }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    animation: slideDown 0.5s ease;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 42px;
+    height: 42px;
+    background: linear-gradient(135deg, var(--accent), var(--cloud));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(108,99,255,0.4);
+  }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span {
+    color: var(--accent);
+  }
+
+  .header-badges {
+    display: flex;
+    gap: 8px;
+  }
+
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+
+  .badge-local {
+    background: rgba(74,222,128,0.1);
+    border-color: rgba(74,222,128,0.3);
+    color: var(--green);
+  }
+
+  .badge-cloud {
+    background: rgba(56,178,255,0.1);
+    border-color: rgba(56,178,255,0.3);
+    color: var(--cloud);
+  }
+
+  .badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  .badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    animation: slideDown 0.5s ease 0.1s both;
+  }
+
+  .path-bar {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .path-bar span { color: var(--accent); }
+
+  .btn {
+    padding: 9px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--surface2);
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    border: none;
+    color: white;
+    box-shadow: 0 4px 15px rgba(108,99,255,0.3);
+  }
+
+  .btn-primary:hover {
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108,99,255,0.5);
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    width: fit-content;
+    animation: slideDown 0.5s ease 0.15s both;
+  }
+
+  .tab {
+    padding: 7px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--muted);
+    border: none;
+    background: none;
+    font-family: 'Syne', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .tab:hover:not(.active) {
+    color: var(--text);
+  }
+
+  /* File grid */
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    animation: fadeIn 0.4s ease 0.2s both;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .file-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .file-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .file-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(108,99,255,0.2);
+  }
+
+  .file-card:hover::before {
+    opacity: 0.04;
+  }
+
+  .file-card.selected {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.08);
+  }
+
+  .cloud-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(56,178,255,0.15);
+    border: 1px solid rgba(56,178,255,0.3);
+    color: var(--cloud);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .file-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .file-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  .file-meta {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* List view */
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: fadeIn 0.4s ease 0.2s both;
+  }
+
+  .file-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .file-row:hover {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.05);
+    transform: translateX(3px);
+  }
+
+  .file-row .file-icon {
+    font-size: 22px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .file-row .file-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .file-row .file-name {
+    margin: 0;
+  }
+
+  .file-row .file-meta {
+    margin-top: 2px;
+  }
+
+  .file-row .cloud-badge {
+    position: static;
+    flex-shrink: 0;
+  }
+
+  .file-row .file-actions {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .file-row:hover .file-actions {
+    opacity: 1;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .icon-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Cloud connect modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: modalIn 0.3s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal h2 {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .modal p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .cloud-option {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .cloud-option:hover {
+    border-color: var(--cloud);
+    transform: translateX(4px);
+  }
+
+  .cloud-option .cloud-logo {
+    font-size: 28px;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .gdrive-logo { background: rgba(255,255,255,0.05); }
+  .mega-logo { background: rgba(210,0,0,0.1); }
+
+  .cloud-option .cloud-info h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .cloud-option .cloud-info p {
+    margin: 0;
+    font-size: 11px;
+  }
+
+  .cloud-option .recommended {
+    margin-left: auto;
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.3);
+    color: var(--green);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+    animation: slideDown 0.5s ease 0.05s both;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .stat-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stat-info p {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 2px;
+  }
+
+  .stat-info h3 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  /* Progress bar */
+  .storage-progress {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+    width: 80px;
+  }
+
+  .storage-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* View toggle */
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+  }
+
+  .view-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    transition: all 0.15s;
+  }
+
+  .view-btn.active, .view-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.1);
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">💾</div>
+      <div class="logo-text">USB <span>Hub</span></div>
+    </div>
+    <div class="header-badges">
+      <div class="badge badge-local">
+        <div class="dot"></div>
+        USB Bağlı
+      </div>
+      <div class="badge badge-cloud" id="cloudBadge" style="display:none">
+        <div class="dot"></div>
+        Cloud Bağlı
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(108,99,255,0.1)">💾</div>
+      <div class="stat-info">
+        <p>USB DEPOLAMA</p>
+        <h3 id="usbUsed">— / —</h3>
+        <div class="storage-progress">
+          <div class="storage-fill" id="usbBar" style="width:0%;background:var(--accent)"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(56,178,255,0.1)">☁️</div>
+      <div class="stat-info">
+        <p>CLOUD DEPOLAMA</p>
+        <h3 id="cloudUsed">Bağlı Değil</h3>
+        <div class="storage-progress">
+          <div class="storage-fill" id="cloudBar" style="width:0%;background:var(--cloud)"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(74,222,128,0.1)">📁</div>
+      <div class="stat-info">
+        <p>TOPLAM DOSYA</p>
+        <h3 id="totalFiles">0 dosya</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="path-bar">
+      <span>📂</span>
+      <span id="currentPath">/ USB</span>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="gridViewBtn" onclick="setView('grid')" title="Grid">⊞</button>
+      <button class="view-btn" id="listViewBtn" onclick="setView('list')" title="Liste">☰</button>
+    </div>
+    <button class="btn" onclick="showModal()">☁️ Cloud Bağla</button>
+    <button class="btn btn-primary" onclick="openFileDialog()">＋ Dosya Ekle</button>
+    <input type="file" id="fileInput" multiple style="display:none" onchange="handleFileUpload(event)">
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="filterFiles('all', this)">🗂 Tümü <span id="allCount" style="color:var(--muted);font-size:11px"></span></button>
+    <button class="tab" onclick="filterFiles('local', this)">💾 Yerel <span id="localCount" style="color:var(--muted);font-size:11px"></span></button>
+    <button class="tab" onclick="filterFiles('cloud', this)">☁️ Cloud <span id="cloudCount" style="color:var(--muted);font-size:11px"></span></button>
+  </div>
+
+  <!-- Grid View -->
+  <div class="file-grid" id="gridView"></div>
+
+  <!-- List View -->
+  <div class="file-list hidden" id="listView"></div>
+
+</div>
+
+<!-- Cloud Connect Modal -->
+<div class="modal-overlay hidden" id="cloudModal">
+  <div class="modal">
+    <h2>☁️ Cloud Bağla</h2>
+    <p>Cloud depolama bağlayarak USB'nin yanında cloud dosyalarını da yönet. MEGA önerilir — 20 GB ücretsiz!</p>
+    
+    <div class="cloud-option" onclick="connectCloud('mega')">
+      <div class="cloud-logo mega-logo">🔴</div>
+      <div class="cloud-info">
+        <h3>MEGA</h3>
+        <p>20 GB ücretsiz · Şifreli · Hızlı</p>
+      </div>
+      <span class="recommended">ÖNERİLEN</span>
+    </div>
+
+    <div class="cloud-option" onclick="connectCloud('gdrive')">
+      <div class="cloud-logo gdrive-logo">🔵</div>
+      <div class="cloud-info">
+        <h3>Google Drive</h3>
+        <p>15 GB ücretsiz · Google hesabı gerekli</p>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal()">İptal</button>
+      <button class="btn btn-primary" onclick="addCloudFiles()">Demo Dosya Ekle ☁️</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let files = [
+  { id: 1, name: 'Proje_Final.pdf', type: 'pdf', size: '2.4 MB', date: '15 Mar', source: 'local' },
+  { id: 2, name: 'Fotoğraflar', type: 'folder', size: '142 dosya', date: '10 Mar', source: 'local' },
+  { id: 3, name: 'Müzik_Mix.mp3', type: 'audio', size: '8.1 MB', date: '12 Mar', source: 'local' },
+  { id: 4, name: 'Notlar.txt', type: 'text', size: '12 KB', date: '18 Mar', source: 'local' },
+  { id: 5, name: 'Setup.exe', type: 'exe', size: '55 MB', date: '1 Mar', source: 'local' },
+  { id: 6, name: 'Wallpapers', type: 'folder', size: '38 dosya', date: '5 Mar', source: 'local' },
+];
+
+let currentFilter = 'all';
+let currentView = 'grid';
+let cloudConnected = false;
+
+// ─── ICONS ───────────────────────────────────────────────
+function getIcon(type) {
+  const icons = {
+    pdf: '📄', folder: '📁', audio: '🎵', text: '📝',
+    exe: '⚙️', image: '🖼️', video: '🎬', zip: '🗜️',
+    doc: '📘', xls: '📗', ppt: '📙', code: '💻', default: '📦'
+  };
+  return icons[type] || icons.default;
+}
+
+// ─── RENDER ──────────────────────────────────────────────
+function render() {
+  const filtered = files.filter(f => currentFilter === 'all' || f.source === currentFilter);
+
+  // Counts
+  document.getElementById('allCount').textContent = files.length;
+  document.getElementById('localCount').textContent = files.filter(f => f.source === 'local').length;
+  document.getElementById('cloudCount').textContent = files.filter(f => f.source === 'cloud').length;
+  document.getElementById('totalFiles').textContent = files.length + ' dosya';
+
+  if (currentView === 'grid') renderGrid(filtered);
+  else renderList(filtered);
+}
+
+function renderGrid(filtered) {
+  const grid = document.getElementById('gridView');
+  grid.innerHTML = filtered.map(f => `
+    <div class="file-card ${f.source === 'cloud' ? '' : ''}" onclick="selectFile(${f.id})">
+      ${f.source === 'cloud' ? `<div class="cloud-badge">☁️ cloud</div>` : ''}
+      <span class="file-icon">${getIcon(f.type)}</span>
+      <div class="file-name" title="${f.name}">${f.name}</div>
+      <div class="file-meta">${f.size} · ${f.date}</div>
+    </div>
+  `).join('');
+}
+
+function renderList(filtered) {
+  const list = document.getElementById('listView');
+  list.innerHTML = filtered.map(f => `
+    <div class="file-row" onclick="selectFile(${f.id})">
+      <span class="file-icon">${getIcon(f.type)}</span>
+      <div class="file-info">
+        <div class="file-name">${f.name}</div>
+        <div class="file-meta">${f.size} · ${f.date}</div>
+      </div>
+      ${f.source === 'cloud' ? `<div class="cloud-badge">☁️ cloud</div>` : ''}
+      <div class="file-actions">
+        <button class="icon-btn" title="Aç" onclick="event.stopPropagation()">↗</button>
+        <button class="icon-btn" title="İndir" onclick="event.stopPropagation()">⬇</button>
+        <button class="icon-btn" title="Sil" onclick="deleteFile(event,${f.id})">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── ACTIONS ─────────────────────────────────────────────
+function setView(view) {
+  currentView = view;
+  document.getElementById('gridView').classList.toggle('hidden', view !== 'grid');
+  document.getElementById('listView').classList.toggle('hidden', view !== 'list');
+  document.getElementById('gridViewBtn').classList.toggle('active', view === 'grid');
+  document.getElementById('listViewBtn').classList.toggle('active', view === 'list');
+  render();
+}
+
+function filterFiles(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function selectFile(id) {
+  document.querySelectorAll('.file-card').forEach(c => c.classList.remove('selected'));
+}
+
+function deleteFile(e, id) {
+  e.stopPropagation();
+  files = files.filter(f => f.id !== id);
+  render();
+}
+
+function openFileDialog() {
+  document.getElementById('fileInput').click();
+}
+
+function handleFileUpload(event) {
+  const uploadedFiles = Array.from(event.target.files);
+  uploadedFiles.forEach(file => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const typeMap = {
+      pdf: 'pdf', mp3: 'audio', wav: 'audio', mp4: 'video',
+      jpg: 'image', jpeg: 'image', png: 'image', gif: 'image',
+      txt: 'text', doc: 'doc', docx: 'doc', xls: 'xls', xlsx: 'xls',
+      ppt: 'ppt', pptx: 'ppt', zip: 'zip', rar: 'zip', exe: 'exe',
+      js: 'code', py: 'code', html: 'code', css: 'code'
+    };
+    const size = file.size < 1024 ? file.size + ' B'
+      : file.size < 1048576 ? (file.size/1024).toFixed(1) + ' KB'
+      : (file.size/1048576).toFixed(1) + ' MB';
+
+    files.push({
+      id: Date.now() + Math.random(),
+      name: file.name,
+      type: typeMap[ext] || 'default',
+      size: size,
+      date: 'Bugün',
+      source: 'local'
+    });
+  });
+  event.target.value = '';
+  render();
+}
+
+// ─── CLOUD ───────────────────────────────────────────────
+function showModal() { document.getElementById('cloudModal').classList.remove('hidden'); }
+function hideModal() { document.getElementById('cloudModal').classList.add('hidden'); }
+
+function connectCloud(provider) {
+  const urls = {
+    mega: 'https://mega.nz',
+    gdrive: 'https://drive.google.com'
+  };
+  window.open(urls[provider], '_blank');
+}
+
+function addCloudFiles() {
+  const cloudSamples = [
+    { id: Date.now()+1, name: 'Backup_2024.zip', type: 'zip', size: '1.2 GB', date: '1 Mar', source: 'cloud' },
+    { id: Date.now()+2, name: 'Cloud Notlar.txt', type: 'text', size: '34 KB', date: '17 Mar', source: 'cloud' },
+    { id: Date.now()+3, name: 'Sunumlar', type: 'folder', size: '12 dosya', date: '8 Mar', source: 'cloud' },
+    { id: Date.now()+4, name: 'video_proje.mp4', type: 'video', size: '320 MB', date: '14 Mar', source: 'cloud' },
+  ];
+  
+  // Zaten eklenmemişse ekle
+  const existingCloud = files.filter(f => f.source === 'cloud').length;
+  if (existingCloud === 0) {
+    files = [...files, ...cloudSamples];
+  }
+  
+  cloudConnected = true;
+  document.getElementById('cloudBadge').style.display = 'flex';
+  document.getElementById('cloudUsed').textContent = '4.2 / 20 GB';
+  document.getElementById('cloudBar').style.width = '21%';
+  
+  hideModal();
+  render();
+}
+
+// ─── INIT ────────────────────────────────────────────────
+// USB depolama simüle et
+document.getElementById('usbUsed').textContent = '3.8 / 32 GB';
+document.getElementById('usbBar').style.width = '12%';
+
+render();
+</script>
+</body>
+</html>
