@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>USB Hub — Dosya Yöneticisi</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════ */
+:root {
+  --bg:        #080810;
+  --bg1:       #0e0e1a;
+  --bg2:       #141422;
+  --bg3:       #1c1c2e;
+  --border:    rgba(255,255,255,.07);
+  --border2:   rgba(255,255,255,.12);
+  --accent:    #7c6dff;
+  --accent2:   #a78bfa;
+  --cloud:     #22d3ee;
+  --green:     #34d399;
+  --red:       #f87171;
+  --yellow:    #fbbf24;
+  --text:      #e2e2f0;
+  --text2:     #8888aa;
+  --text3:     #4a4a6a;
+  --glow:      rgba(124,109,255,.25);
+  --glow-c:    rgba(34,211,238,.2);
+  --r:         10px;
+  --r2:        14px;
+  --r3:        18px;
+}
+
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+}
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 600px 400px at 15% 10%, rgba(124,109,255,.06) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 300px at 85% 80%, rgba(34,211,238,.04) 0%, transparent 70%);
+}
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--bg3); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border2); }
+
+button { cursor:pointer; font-family:'Outfit',sans-serif; }
+input, textarea { font-family:'JetBrains Mono',monospace; }
+.hidden { display:none !important; }
+
+/* ═══════════════════════════════════════════
+   TITLEBAR
+═══════════════════════════════════════════ */
+.titlebar {
+  position:relative; z-index:50;
+  display:flex; align-items:center; gap:12px;
+  padding:0 18px;
+  height:48px;
+  background:var(--bg1);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.logo {
+  display:flex; align-items:center; gap:10px;
+  margin-right:4px;
+}
+.logo-mark {
+  width:32px; height:32px;
+  border-radius:9px;
+  background:linear-gradient(135deg, var(--accent), var(--cloud));
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+  box-shadow: 0 0 20px var(--glow);
+  flex-shrink:0;
+}
+.logo-name {
+  font-size:16px; font-weight:800; letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--text),var(--accent2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.divider-v {
+  width:1px; height:20px;
+  background:var(--border);
+}
+.pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 10px;
+  border-radius:20px;
+  font-size:11px; font-weight:600;
+  border:1px solid transparent;
+  font-family:'JetBrains Mono',monospace;
+}
+.pill-usb  { background:rgba(52,211,153,.08); border-color:rgba(52,211,153,.2); color:var(--green); }
+.pill-drive{ background:rgba(34,211,238,.08); border-color:rgba(34,211,238,.2); color:var(--cloud); }
+.pill .blink { width:5px; height:5px; border-radius:50%; background:currentColor; animation:blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+.tb-space { flex:1; }
+
+/* ═══════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════ */
+.app {
+  display:flex; flex:1; overflow:hidden;
+  position:relative; z-index:1;
+}
+
+/* ═══════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════ */
+.sidebar {
+  width:210px; flex-shrink:0;
+  background:var(--bg1);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow-y:auto;
+  padding-bottom:12px;
+}
+.sb-group { padding:14px 10px 4px; }
+.sb-label {
+  font-size:10px; font-weight:700;
+  color:var(--text3);
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  padding:0 8px;
+  margin-bottom:4px;
+  font-family:'JetBrains Mono',monospace;
+}
+.sb-item {
+  display:flex; align-items:center; gap:9px;
+  padding:7px 10px;
+  border-radius:var(--r);
+  cursor:pointer;
+  font-size:13px; font-weight:600;
+  color:var(--text2);
+  transition:all .15s;
+  border:1px solid transparent;
+  position:relative;
+}
+.sb-item:hover { background:var(--bg2); color:var(--text); }
+.sb-item.active {
+  background:rgba(124,109,255,.1);
+  border-color:rgba(124,109,255,.2);
+  color:var(--accent2);
+}
+.sb-item.active::before {
+  content:'';
+  position:absolute; left:-10px; top:50%; transform:translateY(-50%);
+  width:3px; height:18px;
+  background:var(--accent);
+  border-radius:0 3px 3px 0;
+}
+.sb-icon { font-size:16px; width:22px; text-align:center; flex-shrink:0; }
+.sb-badge {
+  margin-left:auto;
+  font-size:10px; font-weight:700;
+  background:var(--bg3); color:var(--text2);
+  padding:1px 6px; border-radius:8px;
+  font-family:'JetBrains Mono',monospace;
+}
+.sb-sep { height:1px; background:var(--border); margin:8px 10px; }
+.sb-drive-btn {
+  margin:8px 10px;
+  padding:9px 12px;
+  border-radius:var(--r);
+  border:1px dashed rgba(34,211,238,.3);
+  background:rgba(34,211,238,.05);
+  color:var(--cloud);
+  font-size:12px; font-weight:700;
+  display:flex; align-items:center; gap:8px;
+  transition:all .2s;
+}
+.sb-drive-btn:hover { background:rgba(34,211,238,.1); border-style:solid; }
+.sb-drive-btn.out {
+  border-color:rgba(248,113,113,.25);
+  background:rgba(248,113,113,.05);
+  color:var(--red);
+}
+.sb-drive-btn.out:hover { background:rgba(248,113,113,.1); }
+
+/* ═══════════════════════════════════════════
+   MAIN PANEL
+═══════════════════════════════════════════ */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ── TOOLBAR ── */
+.toolbar {
+  display:flex; align-items:center; gap:8px;
+  padding:9px 14px;
+  background:var(--bg1);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0; flex-wrap:wrap;
+}
+.breadcrumb {
+  flex:1; display:flex; align-items:center; gap:2px;
+  font-size:12px; min-width:100px; overflow:hidden;
+  font-family:'JetBrains Mono',monospace;
+}
+.bc { color:var(--text2); cursor:pointer; padding:3px 6px; border-radius:6px; white-space:nowrap; transition:all .12s; }
+.bc:hover { color:var(--accent2); background:rgba(124,109,255,.08); }
+.bc.cur { color:var(--text); cursor:default; }
+.bc-sep { color:var(--text3); font-size:10px; }
+.search-box { position:relative; }
+.search-box input {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:6px 10px 6px 28px;
+  color:var(--text); font-size:12px;
+  width:150px; outline:none;
+  transition:all .2s;
+}
+.search-box input:focus { border-color:rgba(124,109,255,.4); width:190px; }
+.search-box input::placeholder { color:var(--text3); }
+.search-box .si { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text3); pointer-events:none; }
+.vg { display:flex; gap:3px; }
+.vb {
+  width:30px; height:30px;
+  border-radius:var(--r);
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--text2); font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.vb:hover, .vb.on { color:var(--accent2); border-color:rgba(124,109,255,.3); background:rgba(124,109,255,.08); }
+.btn {
+  height:30px; padding:0 12px;
+  border-radius:var(--r);
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--text); font-size:12px; font-weight:600;
+  display:flex; align-items:center; gap:5px;
+  white-space:nowrap; transition:all .15s;
+}
+.btn:hover { border-color:rgba(124,109,255,.4); color:var(--accent2); }
+.btn.primary {
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none; color:#fff;
+  box-shadow:0 3px 12px var(--glow);
+}
+.btn.primary:hover { transform:translateY(-1px); box-shadow:0 5px 18px var(--glow); }
+
+/* ═══════════════════════════════════════════
+   FILES AREA
+═══════════════════════════════════════════ */
+.files-area { flex:1; overflow-y:auto; padding:14px; }
+
+/* ── GRID ── */
+.grid-view { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; }
+
+.card {
+  background:var(--bg1);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  padding:14px 10px 10px;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative; overflow:hidden;
+  text-align:center;
+  animation:fadeUp .25s ease both;
+}
+.card::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg,var(--accent),transparent);
+  opacity:0; transition:opacity .2s; pointer-events:none;
+}
+.card:hover { border-color:rgba(124,109,255,.4); transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.4); }
+.card:hover::after { opacity:.04; }
+.card.sel { border-color:rgba(124,109,255,.5); background:rgba(124,109,255,.06); }
+.card-cloud { position:absolute; top:7px; right:7px; font-size:9px; color:var(--cloud); background:rgba(34,211,238,.1); border:1px solid rgba(34,211,238,.25); border-radius:4px; padding:1px 5px; font-family:'JetBrains Mono',monospace; }
+.card-icon { font-size:32px; margin-bottom:8px; display:block; }
+.card-name { font-size:11px; font-weight:600; word-break:break-all; line-height:1.35; margin-bottom:3px; }
+.card-meta { font-size:10px; color:var(--text2); font-family:'JetBrains Mono',monospace; }
+.card-actions {
+  position:absolute; bottom:0; left:0; right:0;
+  padding:6px 5px;
+  background:linear-gradient(transparent,rgba(8,8,16,.97));
+  display:flex; gap:3px; justify-content:center;
+  opacity:0; transition:opacity .2s;
+}
+.card:hover .card-actions { opacity:1; }
+
+/* ── LIST ── */
+.list-view { display:flex; flex-direction:column; gap:3px; }
+.list-head {
+  display:flex; align-items:center; gap:10px;
+  padding:4px 14px;
+  font-size:10px; color:var(--text3);
+  font-family:'JetBrains Mono',monospace; font-weight:500;
+  letter-spacing:.06em;
+}
+.row {
+  background:var(--bg1);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:9px 14px;
+  display:flex; align-items:center; gap:12px;
+  cursor:pointer; transition:all .15s;
+  animation:fadeUp .2s ease both;
+}
+.row:hover { border-color:rgba(124,109,255,.35); background:rgba(124,109,255,.03); transform:translateX(2px); }
+.row.sel { border-color:rgba(124,109,255,.4); background:rgba(124,109,255,.06); }
+.row-icon { font-size:20px; width:26px; text-align:center; flex-shrink:0; }
+.row-info { flex:1; min-width:0; }
+.row-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row-type { font-size:10px; color:var(--text2); margin-top:1px; font-family:'JetBrains Mono',monospace; }
+.row-cloud { flex-shrink:0; font-size:9px; color:var(--cloud); background:rgba(34,211,238,.1); border:1px solid rgba(34,211,238,.25); border-radius:4px; padding:2px 6px; font-family:'JetBrains Mono',monospace; }
+.row-size { width:70px; text-align:right; font-size:11px; color:var(--text2); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+.row-date { width:80px; text-align:right; font-size:11px; color:var(--text2); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+.row-acts { display:flex; gap:3px; opacity:0; transition:opacity .15s; }
+.row:hover .row-acts { opacity:1; }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:280px; gap:12px; color:var(--text2);
+}
+.empty-state .es-icon { font-size:52px; opacity:.4; }
+.empty-state p { font-size:13px; line-height:1.6; text-align:center; opacity:.7; }
+.empty-state .es-btn { margin-top:4px; }
+
+/* ── ICON BTN ── */
+.ib {
+  width:26px; height:26px; border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--bg2); color:var(--text2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; transition:all .12s;
+}
+.ib:hover { color:var(--accent2); border-color:rgba(124,109,255,.35); }
+.ib.red:hover { color:var(--red); border-color:rgba(248,113,113,.35); }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* ═══════════════════════════════════════════
+   STATUS BAR
+═══════════════════════════════════════════ */
+.statusbar {
+  display:flex; align-items:center; gap:14px;
+  padding:5px 14px;
+  background:var(--bg1);
+  border-top:1px solid var(--border);
+  font-size:10px; color:var(--text2);
+  font-family:'JetBrains Mono',monospace;
+  flex-shrink:0;
+}
+.statusbar b { color:var(--text); }
+
+/* ═══════════════════════════════════════════
+   OVERLAY / MODAL
+═══════════════════════════════════════════ */
+.overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.75);
+  backdrop-filter:blur(10px);
+  z-index:200;
+  display:flex; align-items:center; justify-content:center;
+  animation:ovIn .18s ease;
+}
+@keyframes ovIn { from{opacity:0} to{opacity:1} }
+
+.modal {
+  background:var(--bg1);
+  border:1px solid var(--border2);
+  border-radius:var(--r3);
+  padding:28px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03);
+  animation:mdIn .22s cubic-bezier(.16,1,.3,1);
+  position:relative;
+}
+@keyframes mdIn { from{opacity:0;transform:scale(.9) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+.modal h2 { font-size:18px; font-weight:800; margin-bottom:6px; }
+.modal-sub { font-size:12px; color:var(--text2); margin-bottom:20px; line-height:1.6; }
+
+.mclose {
+  position:absolute; top:14px; right:14px;
+  width:28px; height:28px; border-radius:8px;
+  border:1px solid var(--border); background:var(--bg2);
+  color:var(--text2); font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.mclose:hover { color:var(--text); border-color:var(--border2); }
+
+.m-row { display:flex; gap:8px; margin-top:16px; }
+.m-row .btn { flex:1; justify-content:center; height:36px; font-size:13px; }
+
+/* ── MODAL INPUT ── */
+.mi {
+  width:100%;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:9px 13px;
+  color:var(--text); font-size:13px;
+  outline:none; transition:border-color .18s;
+}
+.mi:focus { border-color:rgba(124,109,255,.5); }
+.mi::placeholder { color:var(--text3); }
+.mi-label { font-size:11px; color:var(--text2); margin-bottom:5px; font-family:'JetBrains Mono',monospace; }
+.mi-hint { font-size:10px; color:var(--text3); margin-top:4px; line-height:1.5; font-family:'JetBrains Mono',monospace; }
+
+/* ═══════════════════════════════════════════
+   NEW FILE MODAL — TYPE SELECTOR
+═══════════════════════════════════════════ */
+#newFileModal .modal { width:500px; }
+
+.type-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:7px; margin-bottom:16px;
+}
+.type-card {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:11px 6px;
+  text-align:center; cursor:pointer;
+  transition:all .15s;
+}
+.type-card:hover { border-color:rgba(124,109,255,.3); }
+.type-card.on { border-color:rgba(124,109,255,.6); background:rgba(124,109,255,.1); box-shadow:0 0 12px rgba(124,109,255,.15); }
+.tc-icon { font-size:22px; margin-bottom:5px; }
+.tc-name { font-size:10px; font-weight:700; color:var(--text); }
+.tc-ext  { font-size:9px; color:var(--text3); font-family:'JetBrains Mono',monospace; margin-top:1px; }
+
+/* ═══════════════════════════════════════════
+   EDITOR MODAL
+═══════════════════════════════════════════ */
+#editorModal .modal {
+  width:min(880px, 96vw);
+  height:88vh;
+  display:flex; flex-direction:column;
+  padding:20px;
+}
+
+.ed-bar {
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:12px; flex-wrap:wrap;
+}
+.ed-filename { font-size:15px; font-weight:700; color:var(--accent2); }
+.ed-lang-tag {
+  font-size:10px; color:var(--text2);
+  background:var(--bg2); padding:2px 8px;
+  border-radius:5px; font-family:'JetBrains Mono',monospace;
+  border:1px solid var(--border);
+}
+.ed-shortcut { margin-left:auto; font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+
+.ed-wrap {
+  flex:1; min-height:0;
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  position:relative;
+  display:flex;
+}
+
+.line-gutter {
+  width:44px; flex-shrink:0;
+  background:var(--bg);
+  border-right:1px solid var(--border);
+  padding:12px 0;
+  overflow:hidden;
+  user-select:none; pointer-events:none;
+}
+.lg-num {
+  display:block;
+  text-align:right;
+  padding:0 8px;
+  font-size:11px; line-height:1.65;
+  font-family:'JetBrains Mono',monospace;
+  color:var(--text3);
+}
+
+#codeTA {
+  flex:1;
+  background:var(--bg);
+  border:none; outline:none; resize:none;
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:12.5px; line-height:1.65;
+  padding:12px 14px;
+  tab-size:2;
+  white-space:pre;
+  overflow-wrap:normal;
+  overflow:auto;
+}
+#codeTA::selection { background:rgba(124,109,255,.3); }
+
+.ed-footer {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:10px;
+}
+.ed-stats {
+  display:flex; gap:16px;
+  font-size:10px; color:var(--text3);
+  font-family:'JetBrains Mono',monospace;
+}
+.ed-stats span { color:var(--text2); }
+.ed-btns { display:flex; gap:7px; }
+
+/* ═══════════════════════════════════════════
+   PROPS MODAL
+═══════════════════════════════════════════ */
+#propsModal .modal { width:360px; }
+.prop-table { margin-top:10px; }
+.prop-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 0;
+  border-bottom:1px solid var(--border);
+  font-size:12px;
+}
+.prop-row:last-child { border:none; }
+.prop-key { color:var(--text2); font-family:'JetBrains Mono',monospace; }
+.prop-val { font-weight:600; text-align:right; max-width:55%; word-break:break-all; }
+
+/* ═══════════════════════════════════════════
+   DRIVE MODAL
+═══════════════════════════════════════════ */
+#driveModal .modal { width:440px; }
+.g-login-btn {
+  display:flex; align-items:center; gap:12px;
+  width:100%; padding:12px 18px;
+  background:#fff; color:#1f1f1f;
+  border:none; border-radius:var(--r);
+  font-size:13px; font-weight:700;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+  margin-bottom:16px; transition:all .2s;
+}
+.g-login-btn:hover { transform:translateY(-1px); box-shadow:0 7px 22px rgba(0,0,0,.4); }
+
+/* ═══════════════════════════════════════════
+   DELETE / RENAME MODALS
+═══════════════════════════════════════════ */
+#deleteModal .modal { width:360px; }
+#renameModal .modal { width:360px; }
+#folderModal .modal { width:360px; }
+
+/* ═══════════════════════════════════════════
+   CONTEXT MENU
+═══════════════════════════════════════════ */
+#ctxMenu {
+  position:fixed;
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:var(--r2);
+  padding:5px;
+  min-width:175px;
+  box-shadow:0 10px 32px rgba(0,0,0,.55);
+  z-index:300;
+  display:none;
+  animation:ctxIn .14s ease;
+}
+@keyframes ctxIn { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
+.ctx {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 12px; border-radius:8px;
+  font-size:12px; font-weight:600; color:var(--text);
+  transition:all .1s; cursor:pointer;
+}
+.ctx:hover { background:var(--bg3); color:var(--accent2); }
+.ctx.red:hover { background:rgba(248,113,113,.08); color:var(--red); }
+.ctx-icon { width:16px; text-align:center; font-size:14px; opacity:.8; }
+.ctx-sep { height:1px; background:var(--border); margin:4px 0; }
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+#toast {
+  position:fixed; bottom:20px; right:20px;
+  padding:10px 18px;
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  font-size:12px; font-weight:600;
+  font-family:'JetBrains Mono',monospace;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  z-index:500; display:none;
+  animation:toastIn .25s cubic-bezier(.16,1,.3,1);
+}
+@keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ═══════════════════════════════════════════
+   FILE TYPE COLORS
+═══════════════════════════════════════════ */
+.ft-html  { color:#f97316; }
+.ft-css   { color:#38bdf8; }
+.ft-js    { color:#fbbf24; }
+.ft-ts    { color:#3b82f6; }
+.ft-json  { color:#a3e635; }
+.ft-py    { color:#34d399; }
+.ft-md    { color:#c084fc; }
+.ft-xml   { color:#fb7185; }
+.ft-sql   { color:#67e8f9; }
+.ft-sh    { color:#4ade80; }
+.ft-csv   { color:#86efac; }
+.ft-txt   { color:#e2e2f0; }
+
+</style>
+</head>
+<body>
+
+<!-- ══════════ TITLEBAR ══════════ -->
+<div class="titlebar">
+  <div class="logo">
+    <div class="logo-mark">💾</div>
+    <div class="logo-name">USB Hub</div>
+  </div>
+  <div class="divider-v"></div>
+  <div class="pill pill-usb"><span class="blink"></span>USB Bağlı</div>
+  <div class="pill pill-drive hidden" id="cloudPill"><span class="blink"></span>Drive Bağlı</div>
+  <div class="tb-space"></div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-group">
+      <div class="sb-label">Genel</div>
+      <div class="sb-item active" id="sb-all" onclick="sbNav('all',this)">
+        <span class="sb-icon">🗂</span>Tüm Dosyalar
+        <span class="sb-badge" id="badge-all">0</span>
+      </div>
+      <div class="sb-item" id="sb-local" onclick="sbNav('local',this)">
+        <span class="sb-icon">💾</span>Yerel (USB)
+        <span class="sb-badge" id="badge-local">0</span>
+      </div>
+      <div class="sb-item" id="sb-cloud" onclick="sbNav('cloud',this)">
+        <span class="sb-icon">☁️</span>Google Drive
+        <span class="sb-badge" id="badge-cloud">0</span>
+      </div>
+    </div>
+    <div class="sb-sep"></div>
+    <div class="sb-group">
+      <div class="sb-label">Tür</div>
+      <div class="sb-item" onclick="sbType('folder',this)"><span class="sb-icon">📁</span>Klasörler</div>
+      <div class="sb-item" onclick="sbType('image',this)"><span class="sb-icon">🖼️</span>Görseller</div>
+      <div class="sb-item" onclick="sbType('audio',this)"><span class="sb-icon">🎵</span>Müzik</div>
+      <div class="sb-item" onclick="sbType('video',this)"><span class="sb-icon">🎬</span>Videolar</div>
+      <div class="sb-item" onclick="sbTypeSet(['html','css','js','ts','json','py','xml','sql','sh','csv','md','txt'],this)">
+        <span class="sb-icon">💻</span>Kod & Metin
+      </div>
+      <div class="sb-item" onclick="sbType('doc',this)"><span class="sb-icon">📄</span>Belgeler</div>
+    </div>
+    <div class="sb-sep"></div>
+    <button class="sb-drive-btn" id="driveConnBtn" onclick="openM('driveModal')">☁️ Drive Bağla</button>
+    <button class="sb-drive-btn out hidden" id="driveOutBtn" onclick="driveLO()">⏏ Drive Çıkış</button>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <div class="breadcrumb" id="bc"></div>
+      <div class="search-box">
+        <span class="si">🔍</span>
+        <input id="searchQ" placeholder="Dosya ara..." oninput="doSearch(this.value)">
+      </div>
+      <div class="vg">
+        <button class="vb on" id="vgGrid" onclick="setV('grid')" title="Grid">⊞</button>
+        <button class="vb" id="vgList" onclick="setV('list')" title="Liste">☰</button>
+      </div>
+      <button class="btn" onclick="openNewFolder()">📁 Yeni Klasör</button>
+      <button class="btn" onclick="openNewFile()">📄 Yeni Dosya</button>
+      <button class="btn primary" onclick="document.getElementById('upInput').click()">⬆ Yükle</button>
+      <input id="upInput" type="file" multiple style="display:none" onchange="handleUpload(event)">
+    </div>
+
+    <!-- FILES AREA -->
+    <div class="files-area" id="filesArea" oncontextmenu="ctxBG(event)">
+      <div class="grid-view" id="gView"></div>
+      <div class="list-view hidden" id="lView"></div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="statusbar">
+      <span>📁 <b id="stCount">0</b> öğe</span>
+      <span>💾 <b id="stLocal">0</b> yerel</span>
+      <span>☁️ <b id="stCloud">0</b> cloud</span>
+      <span id="stSel" class="hidden">✓ <b id="stSelN">0</b> seçili</span>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════
+     MODALS
+══════════════════════════════════ -->
+
+<!-- NEW FILE -->
+<div class="overlay hidden" id="newFileModal">
+  <div class="modal" style="width:500px">
+    <button class="mclose" onclick="closeM('newFileModal')">✕</button>
+    <h2>📄 Yeni Dosya Oluştur</h2>
+    <p class="modal-sub">Dosya türünü seç, isim ver ve düzenlemeye başla.</p>
+    <div class="type-grid" id="typeGrid"></div>
+    <div class="mi-label">Dosya adı</div>
+    <input class="mi" id="nfName" placeholder="ornek-dosya">
+    <div class="mi-hint" id="nfHint" style="margin-top:6px; color:var(--accent2)"></div>
+    <div class="m-row">
+      <button class="btn" onclick="closeM('newFileModal')">İptal</button>
+      <button class="btn primary" onclick="doCreateFile()">✨ Oluştur &amp; Düzenle</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW FOLDER -->
+<div class="overlay hidden" id="folderModal">
+  <div class="modal" style="width:360px">
+    <button class="mclose" onclick="closeM('folderModal')">✕</button>
+    <h2>📁 Yeni Klasör</h2>
+    <p class="modal-sub">Klasör adını gir.</p>
+    <input class="mi" id="nfoldName" placeholder="klasör-adı" onkeydown="if(e.key==='Enter')doCreateFolder()">
+    <div class="m-row">
+      <button class="btn" onclick="closeM('folderModal')">İptal</button>
+      <button class="btn primary" onclick="doCreateFolder()">📁 Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR -->
+<div class="overlay hidden" id="editorModal">
+  <div class="modal" style="width:min(880px,96vw);height:88vh;display:flex;flex-direction:column;padding:20px">
+    <button class="mclose" onclick="closeM('editorModal')">✕</button>
+    <div class="ed-bar">
+      <span style="font-size:15px;font-weight:800">✏️ Editör</span>
+      <span class="ed-filename" id="edFilename"></span>
+      <span class="ed-lang-tag" id="edLangTag"></span>
+      <span class="ed-shortcut">Ctrl+S kaydet · Tab = 2 boşluk</span>
+    </div>
+    <div class="ed-wrap">
+      <div class="line-gutter" id="lineGutter"></div>
+      <textarea id="codeTA" spellcheck="false"
+        oninput="syncGutter();updateEdInfo()"
+        onkeydown="edKeydown(event)"
+        onscroll="syncGutterScroll(this)"></textarea>
+    </div>
+    <div class="ed-footer">
+      <div class="ed-stats">
+        <span id="edStatLines">1 satır</span>
+        <span id="edStatChars">0 karakter</span>
+        <span id="edStatCursor">S1:K1</span>
+        <span id="edStatEnc">UTF-8</span>
+      </div>
+      <div class="ed-btns">
+        <button class="btn" onclick="closeM('editorModal')">İptal</button>
+        <button class="btn primary" onclick="saveEditor()">💾 Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE -->
+<div class="overlay hidden" id="deleteModal">
+  <div class="modal" style="width:360px">
+    <button class="mclose" onclick="closeM('deleteModal')">✕</button>
+    <h2>🗑 Sil</h2>
+    <p class="modal-sub" id="delMsg"></p>
+    <div class="m-row">
+      <button class="btn" onclick="closeM('deleteModal')">İptal</button>
+      <button class="btn" style="border-color:rgba(248,113,113,.4);color:var(--red)" onclick="doDelete()">🗑 Evet, Sil</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME -->
+<div class="overlay hidden" id="renameModal">
+  <div class="modal" style="width:360px">
+    <button class="mclose" onclick="closeM('renameModal')">✕</button>
+    <h2>🏷 Yeniden Adlandır</h2>
+    <p class="modal-sub">Yeni ismi gir.</p>
+    <input class="mi" id="rnInput" onkeydown="if(event.key==='Enter')doRename()">
+    <div class="m-row">
+      <button class="btn" onclick="closeM('renameModal')">İptal</button>
+      <button class="btn primary" onclick="doRename()">✅ Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROPS -->
+<div class="overlay hidden" id="propsModal">
+  <div class="modal" style="width:360px">
+    <button class="mclose" onclick="closeM('propsModal')">✕</button>
+    <h2>ℹ️ Özellikler</h2>
+    <div class="prop-table" id="propsTable"></div>
+    <div class="m-row">
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="closeM('propsModal')">Tamam</button>
+    </div>
+  </div>
+</div>
+
+<!-- DRIVE -->
+<div class="overlay hidden" id="driveModal">
+  <div class="modal" style="width:440px">
+    <button class="mclose" onclick="closeM('driveModal')">✕</button>
+    <h2>☁️ Google Drive Bağla</h2>
+    <p class="modal-sub">İlk girişten sonra token USB'ye kaydedilir, bir daha sormaz.</p>
+    <button class="g-login-btn" onclick="startDriveLogin()">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Google ile Giriş Yap
+    </button>
+    <div style="border-top:1px solid var(--border);padding-top:16px">
+      <div class="mi-label">Google Cloud Console → OAuth 2.0 Client ID</div>
+      <input class="mi" id="cidInput" placeholder="xxx.apps.googleusercontent.com" style="margin-bottom:6px">
+      <div class="mi-hint">APIs &amp; Services → Credentials → Create OAuth Client ID<br>Application type: Web<br>Authorized JS Origins: <b>http://localhost</b><br>Authorized Redirect URIs: <b>http://localhost</b></div>
+      <button class="btn primary" style="width:100%;justify-content:center;margin-top:10px;height:36px" onclick="saveCID()">💾 Client ID Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- CTX MENU -->
+<div id="ctxMenu">
+  <div class="ctx" id="ctxOpen"><span class="ctx-icon">↗</span>Aç</div>
+  <div class="ctx" id="ctxEdit"><span class="ctx-icon">✏️</span>Düzenle</div>
+  <div class="ctx" id="ctxRename"><span class="ctx-icon">🏷</span>Yeniden Adlandır</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx" id="ctxProps"><span class="ctx-icon">ℹ️</span>Özellikler</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx red" id="ctxDelete"><span class="ctx-icon">🗑</span>Sil</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────
+//  FILE TYPE DEFINITIONS
+// ─────────────────────────────────────
+const TYPES = [
+  { ext:'html', name:'HTML',       icon:'🌐', color:'#f97316', tmpl:'<!DOCTYPE html>\n<html lang="tr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Başlık</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n  <h1>Merhaba Dünya!</h1>\n\n  <script src="script.js"><\/script>\n</body>\n</html>' },
+  { ext:'css',  name:'CSS',        icon:'🎨', color:'#38bdf8', tmpl:'/* ── Reset ── */\n*, *::before, *::after {\n  margin: 0;\n  padding: 0;\n  box-sizing: border-box;\n}\n\n/* ── Root ── */\n:root {\n  --bg: #fff;\n  --text: #111;\n  --accent: #6c63ff;\n}\n\nbody {\n  background: var(--bg);\n  color: var(--text);\n  font-family: sans-serif;\n  line-height: 1.6;\n}\n' },
+  { ext:'js',   name:'JavaScript', icon:'⚡', color:'#fbbf24', tmpl:"'use strict';\n\n// ── Uygulama ──\n\nconst app = {\n  init() {\n    console.log('Başlatıldı!');\n    this.render();\n  },\n\n  render() {\n    // UI güncelle\n  }\n};\n\ndocument.addEventListener('DOMContentLoaded', () => app.init());\n" },
+  { ext:'json', name:'JSON',       icon:'📦', color:'#a3e635', tmpl:'{\n  "name": "proje-adi",\n  "version": "1.0.0",\n  "description": "",\n  "scripts": {\n    "start": "node index.js"\n  },\n  "keywords": [],\n  "author": "",\n  "license": "MIT"\n}\n' },
+  { ext:'ts',   name:'TypeScript', icon:'🔷', color:'#3b82f6', tmpl:"// ── TypeScript ──\n\ninterface Config {\n  name: string;\n  version: string;\n  debug: boolean;\n}\n\nconst config: Config = {\n  name: 'app',\n  version: '1.0.0',\n  debug: false,\n};\n\nconst main = (): void => {\n  console.log(`Başlatıldı: ${config.name}`);\n};\n\nmain();\n" },
+  { ext:'py',   name:'Python',     icon:'🐍', color:'#34d399', tmpl:'#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n"""Modül açıklaması."""\n\nfrom typing import Optional\n\n\ndef main() -> None:\n    """Ana fonksiyon."""\n    print("Merhaba, Dünya!")\n\n\nif __name__ == "__main__":\n    main()\n' },
+  { ext:'md',   name:'Markdown',   icon:'📋', color:'#c084fc', tmpl:'# Başlık\n\n## Alt Başlık\n\nBu bir **Markdown** dosyasıdır.\n\n### Özellikler\n\n- Madde 1\n- Madde 2\n- Madde 3\n\n### Kod\n\n```js\nconsole.log("Merhaba!");\n```\n\n> Not: Bu bir alıntıdır.\n\n---\n\n*Son güncelleme: bugün*\n' },
+  { ext:'xml',  name:'XML',        icon:'📐', color:'#fb7185', tmpl:'<?xml version="1.0" encoding="UTF-8"?>\n<root>\n  <item id="1">\n    <name>İsim</name>\n    <value>Değer</value>\n  </item>\n</root>\n' },
+  { ext:'sql',  name:'SQL',        icon:'🗃', color:'#67e8f9', tmpl:'-- ── Veritabanı Sorguları ──\n\n-- Tablo oluştur\nCREATE TABLE IF NOT EXISTS kullanici (\n  id       INTEGER PRIMARY KEY AUTOINCREMENT,\n  ad       TEXT    NOT NULL,\n  email    TEXT    UNIQUE NOT NULL,\n  tarih    DATETIME DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Veri ekle\nINSERT INTO kullanici (ad, email)\nVALUES (\'Ali Yılmaz\', \'ali@ornek.com\');\n\n-- Sorgula\nSELECT * FROM kullanici ORDER BY tarih DESC;\n' },
+  { ext:'sh',   name:'Shell',      icon:'🖥', color:'#4ade80', tmpl:'#!/usr/bin/env bash\n# ── Shell Script ──\n\nset -euo pipefail\n\n# Renkler\nRED=\'\\033[0;31m\'\nGREEN=\'\\033[0;32m\'\nNC=\'\\033[0m\'\n\nlog()  { echo -e "${GREEN}[✓]${NC} $1"; }\nerr()  { echo -e "${RED}[✗]${NC} $1" >&2; }\n\nmain() {\n  log "Script başlatıldı"\n  # İşlemler buraya\n}\n\nmain "$@"\n' },
+  { ext:'csv',  name:'CSV',        icon:'📊', color:'#86efac', tmpl:'Ad,Soyad,Email,Telefon,Şehir\nAli,Yılmaz,ali@email.com,05001234567,İstanbul\nAyşe,Kaya,ayse@email.com,05009876543,Ankara\nMehmet,Demir,mehmet@email.com,05551234567,İzmir\n' },
+  { ext:'txt',  name:'Metin',      icon:'📝', color:'#e2e2f0', tmpl:'' },
+];
+
+const EDITABLE_EXTS = new Set(TYPES.map(t => t.ext));
+
+// ─────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────
+let FILES = [
+  { id:1,  name:'Projeler',    type:'folder', size:'0 öğe',  date:'15 Mar 2025', source:'local', children:[] },
+  { id:2,  name:'Web Sitesi',  type:'folder', size:'3 öğe',  date:'18 Mar 2025', source:'local', children:[
+    { id:20, name:'index.html', type:'html', size:'1.2 KB', date:'18 Mar 2025', source:'local', content:TYPES.find(t=>t.ext==='html').tmpl },
+    { id:21, name:'style.css',  type:'css',  size:'0.8 KB', date:'18 Mar 2025', source:'local', content:TYPES.find(t=>t.ext==='css').tmpl },
+    { id:22, name:'script.js',  type:'js',   size:'0.5 KB', date:'18 Mar 2025', source:'local', content:TYPES.find(t=>t.ext==='js').tmpl },
+  ]},
+  { id:3,  name:'Notlar.txt',  type:'txt',    size:'64 B',   date:'17 Mar 2025', source:'local', content:'USB Hub\'a hoş geldin! 👋\n\nBu dosyayı çift tıklayarak düzenleyebilirsin.\nSol taraftan dosya türüne göre filtre yapabilirsin.\nSağ tıkla daha fazla seçenek gör.' },
+  { id:4,  name:'config.json', type:'json',   size:'128 B',  date:'16 Mar 2025', source:'local', content:TYPES.find(t=>t.ext==='json').tmpl },
+  { id:5,  name:'analiz.py',   type:'py',     size:'512 B',  date:'14 Mar 2025', source:'local', content:TYPES.find(t=>t.ext==='py').tmpl },
+  { id:6,  name:'Müzik',       type:'folder', size:'0 öğe',  date:'10 Mar 2025', source:'local', children:[] },
+  { id:7,  name:'Görseller',   type:'folder', size:'0 öğe',  date:'8 Mar 2025',  source:'local', children:[] },
+  { id:8,  name:'fotoğraf.jpg',type:'image',  size:'2.4 MB', date:'12 Mar 2025', source:'local' },
+  { id:9,  name:'belge.pdf',   type:'pdf',    size:'1.1 MB', date:'11 Mar 2025', source:'local' },
+];
+
+let VIEW       = 'grid';
+let FILTER     = 'all';
+let TYPE_FILTER= null;
+let SEARCH     = '';
+let SEL        = null;
+let BREADCRUMB = [];   // [{name, id}]
+let CTX_ID     = null;
+let DEL_ID     = null;
+let REN_ID     = null;
+let EDIT_ID    = null;
+let NF_TYPE    = null;
+
+let ACCESS_TOKEN = null;
+let CLIENT_ID    = '';
+
+// ─────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────
+async function init() {
+  buildTypeGrid();
+  if (window.pywebview) {
+    const saved = await window.pywebview.api.load_token();
+    if (saved) {
+      if (saved.client_id) { CLIENT_ID = saved.client_id; document.getElementById('cidInput').value = saved.client_id; }
+      if (saved.access_token) { ACCESS_TOKEN = saved.access_token; onDriveConnected(); fetchDriveFiles(); }
+    }
+    // Dosya listesini yükle
+    await loadFiles();
+  }
+  render();
+}
+
+// ─────────────────────────────────────
+//  RENDER
+// ─────────────────────────────────────
+function getPool() {
+  let pool;
+  if (BREADCRUMB.length > 0) {
+    const folder = findFile(BREADCRUMB[BREADCRUMB.length - 1].id);
+    pool = folder ? (folder.children || []) : [];
+  } else {
+    pool = FILES;
+  }
+
+  if (TYPE_FILTER) {
+    if (Array.isArray(TYPE_FILTER)) pool = pool.filter(f => TYPE_FILTER.includes(f.type));
+    else pool = pool.filter(f => f.type === TYPE_FILTER);
+  }
+  if (FILTER === 'local') pool = pool.filter(f => f.source === 'local');
+  if (FILTER === 'cloud') pool = pool.filter(f => f.source === 'cloud');
+  if (SEARCH) pool = pool.filter(f => f.name.toLowerCase().includes(SEARCH));
+
+  return pool;
+}
+
+function render() {
+  const pool = getPool();
+  renderBreadcrumb();
+  renderStatus(pool);
+
+  // badges
+  const allF = FILES, localF = FILES.filter(f => f.source === 'local'), cloudF = FILES.filter(f => f.source === 'cloud');
+  document.getElementById('badge-all').textContent   = allF.length;
+  document.getElementById('badge-local').textContent = localF.length;
+  document.getElementById('badge-cloud').textContent = cloudF.length;
+
+  const EMPTY = `<div class="empty-state"><div class="es-icon">🫙</div><p>Bu klasör boş.<br>Yeni dosya oluştur veya yükle!</p><button class="btn primary es-btn" onclick="openNewFile()">📄 Yeni Dosya</button></div>`;
+
+  if (VIEW === 'grid') {
+    document.getElementById('gView').classList.remove('hidden');
+    document.getElementById('lView').classList.add('hidden');
+    document.getElementById('gView').innerHTML = pool.length
+      ? pool.map((f, i) => cardHTML(f, i)).join('')
+      : `<div style="grid-column:1/-1">${EMPTY}</div>`;
+  } else {
+    document.getElementById('lView').classList.remove('hidden');
+    document.getElementById('gView').classList.add('hidden');
+    document.getElementById('lView').innerHTML = pool.length
+      ? `<div class="list-head"><div style="width:26px"></div><div style="flex:1">AD</div><div style="width:70px;text-align:right">BOYUT</div><div style="width:80px;text-align:right">TARİH</div><div style="width:70px"></div></div>` + pool.map((f, i) => rowHTML(f, i)).join('')
+      : EMPTY;
+  }
+}
+
+function cardHTML(f, i) {
+  const sel = SEL === f.id ? ' sel' : '';
+  const delay = `animation-delay:${i * 0.03}s`;
+  const icon  = getIcon(f);
+  return `<div class="card${sel}" style="${delay}"
+    onclick="selectF(${sid(f.id)})"
+    ondblclick="openF(${sid(f.id)})"
+    oncontextmenu="showCtx(event,${sid(f.id)})">
+    ${f.source === 'cloud' ? '<div class="card-cloud">☁️ drive</div>' : ''}
+    <span class="card-icon">${icon}</span>
+    <div class="card-name" title="${esc(f.name)}">${esc(f.name)}</div>
+    <div class="card-meta">${f.size || '—'}</div>
+    <div class="card-actions">
+      ${isEditable(f) ? `<button class="ib" onclick="event.stopPropagation();openEditor(${sid(f.id)})" title="Düzenle">✏️</button>` : ''}
+      <button class="ib" onclick="event.stopPropagation();openRename(${sid(f.id)})" title="Yeniden Adlandır">🏷</button>
+      <button class="ib" onclick="event.stopPropagation();openProps(${sid(f.id)})" title="Özellikler">ℹ️</button>
+      <button class="ib red" onclick="event.stopPropagation();openDelete(${sid(f.id)})" title="Sil">🗑</button>
+    </div>
+  </div>`;
+}
+
+function rowHTML(f, i) {
+  const sel = SEL === f.id ? ' sel' : '';
+  const delay = `animation-delay:${i * 0.02}s`;
+  return `<div class="row${sel}" style="${delay}"
+    onclick="selectF(${sid(f.id)})"
+    ondblclick="openF(${sid(f.id)})"
+    oncontextmenu="showCtx(event,${sid(f.id)})">
+    <span class="row-icon">${getIcon(f)}</span>
+    <div class="row-info">
+      <div class="row-name">${esc(f.name)}</div>
+      <div class="row-type">${f.type.toUpperCase()}</div>
+    </div>
+    ${f.source === 'cloud' ? '<div class="row-cloud">☁️ drive</div>' : ''}
+    <div class="row-size">${f.size || '—'}</div>
+    <div class="row-date">${f.date || '—'}</div>
+    <div class="row-acts">
+      ${isEditable(f) ? `<button class="ib" onclick="event.stopPropagation();openEditor(${sid(f.id)})" title="Düzenle">✏️</button>` : ''}
+      <button class="ib" onclick="event.stopPropagation();openRename(${sid(f.id)})" title="Yeniden Adlandır">🏷</button>
+      <button class="ib" onclick="event.stopPropagation();openProps(${sid(f.id)})" title="Özellikler">ℹ️</button>
+      <button class="ib red" onclick="event.stopPropagation();openDelete(${sid(f.id)})" title="Sil">🗑</button>
+    </div>
+  </div>`;
+}
+
+function renderBreadcrumb() {
+  let html = `<span class="bc" onclick="navTo(-1)">💾 USB</span>`;
+  BREADCRUMB.forEach((p, i) => {
+    html += `<span class="bc-sep"> › </span>`;
+    const isCur = i === BREADCRUMB.length - 1;
+    html += `<span class="bc${isCur ? ' cur' : ''}" onclick="navTo(${i})">${esc(p.name)}</span>`;
+  });
+  document.getElementById('bc').innerHTML = html;
+}
+
+function renderStatus(pool) {
+  document.getElementById('stCount').textContent = pool.length;
+  document.getElementById('stLocal').textContent = FILES.filter(f => f.source === 'local').length;
+  document.getElementById('stCloud').textContent = FILES.filter(f => f.source === 'cloud').length;
+}
+
+// ─────────────────────────────────────
+//  NAVIGATION
+// ─────────────────────────────────────
+function navTo(idx) {
+  BREADCRUMB = idx === -1 ? [] : BREADCRUMB.slice(0, idx + 1);
+  render();
+}
+
+function sbNav(filter, el) {
+  FILTER = filter; TYPE_FILTER = null; SEARCH = '';
+  BREADCRUMB = []; document.getElementById('searchQ').value = '';
+  document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function sbType(t, el) {
+  TYPE_FILTER = t; FILTER = 'all'; SEARCH = ''; BREADCRUMB = [];
+  document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active'); render();
+}
+
+function sbTypeSet(arr, el) {
+  TYPE_FILTER = arr; FILTER = 'all'; SEARCH = ''; BREADCRUMB = [];
+  document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active'); render();
+}
+
+function doSearch(q) { SEARCH = q.toLowerCase(); render(); }
+
+function setV(v) {
+  VIEW = v;
+  document.getElementById('vgGrid').classList.toggle('on', v === 'grid');
+  document.getElementById('vgList').classList.toggle('on', v === 'list');
+  document.getElementById('gView').classList.toggle('hidden', v !== 'grid');
+  document.getElementById('lView').classList.toggle('hidden', v !== 'list');
+  render();
+}
+
+function selectF(id) { SEL = SEL === id ? null : id; render(); }
+
+async function openF(id) {
+  const f = findFile(id); if (!f) return;
+  if (f.type === 'folder') { 
+    // Klasör içeriğini yükle
+    if (f.path && (!f.children || f.children.length === 0) && window.pywebview) {
+      try {
+        const children = await loadFiles(f.path);
+        f.children = children || [];
+      } catch (e) {
+        toast('❌ Klasör yüklenemedi: ' + e.message, 'var(--red)');
+      }
+    }
+    BREADCRUMB.push({ name: f.name, id: f.id }); 
+    render(); 
+    return; 
+  }
+  if (f.source === 'cloud') { if (f.webViewLink) window.open(f.webViewLink, '_blank'); return; }
+  if (isEditable(f)) { openEditor(id); return; }
+  toast('⚠️ Bu dosya türü düzenlenemez: ' + f.name, 'var(--yellow)');
+}
+
+// ─────────────────────────────────────
+//  EDITOR
+// ─────────────────────────────────────
+function isEditable(f) { return EDITABLE_EXTS.has(f.type); }
+
+async function openEditor(id) {
+  const f = findFile(id); if (!f) return;
+  EDIT_ID = id;
+  document.getElementById('edFilename').textContent = f.name;
+  const typeInfo = TYPES.find(t => t.ext === f.type);
+  document.getElementById('edLangTag').textContent = f.type.toUpperCase();
+  document.getElementById('edLangTag').style.color = typeInfo ? typeInfo.color : 'var(--text2)';
+  const ta = document.getElementById('codeTA');
+  
+  // İçerik varsa kullan, yoksa API'den oku
+  let content = f.content;
+  if (content === undefined && f.path && window.pywebview) {
+    try {
+      const result = await window.pywebview.api.read_file(f.path);
+      if (result.content !== undefined) {
+        content = result.content;
+        f.content = content; // Cache için
+      } else {
+        toast('❌ Dosya okunamadı: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Dosya okuma hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  ta.value = content || '';
+  syncGutter(); updateEdInfo();
+  openM('editorModal');
+  setTimeout(() => ta.focus(), 200);
+}
+
+async function saveEditor() {
+  const f = findFile(EDIT_ID); if (!f) return;
+  const content = document.getElementById('codeTA').value;
+  
+  // Gerçek dosyaya kaydet
+  if (f.path && window.pywebview) {
+    try {
+      const result = await window.pywebview.api.write_file(f.path, content);
+      if (!result.success) {
+        toast('❌ Kaydetme başarısız: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Kaydetme hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  f.content = content;
+  const bytes = new Blob([f.content]).size;
+  f.size = bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes/1024).toFixed(1) + ' KB' : (bytes/1048576).toFixed(1) + ' MB';
+  f.date = new Date().toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' });
+  toast('💾 Kaydedildi: ' + f.name);
+  closeM('editorModal');
+  render();
+}
+
+function syncGutter() {
+  const ta = document.getElementById('codeTA');
+  const lines = ta.value.split('\n');
+  document.getElementById('lineGutter').innerHTML = lines.map((_, i) =>
+    `<span class="lg-num">${i + 1}</span>`).join('');
+}
+
+function syncGutterScroll(ta) {
+  document.getElementById('lineGutter').scrollTop = ta.scrollTop;
+}
+
+function updateEdInfo() {
+  const ta = document.getElementById('codeTA');
+  const lines = ta.value.split('\n');
+  document.getElementById('edStatLines').textContent = lines.length + ' satır';
+  document.getElementById('edStatChars').textContent = ta.value.length + ' karakter';
+  const before = ta.value.substring(0, ta.selectionStart);
+  const ln = before.split('\n').length;
+  const col = before.split('\n').pop().length + 1;
+  document.getElementById('edStatCursor').textContent = `S${ln}:K${col}`;
+}
+
+function edKeydown(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = e.target, s = ta.selectionStart, en = ta.selectionEnd;
+    ta.value = ta.value.substring(0, s) + '  ' + ta.value.substring(en);
+    ta.selectionStart = ta.selectionEnd = s + 2;
+    syncGutter();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveEditor(); }
+}
+
+// ─────────────────────────────────────
+//  NEW FILE
+// ─────────────────────────────────────
+function buildTypeGrid() {
+  document.getElementById('typeGrid').innerHTML = TYPES.map(t => `
+    <div class="type-card" id="tc-${t.ext}" onclick="selectNFType('${t.ext}')">
+      <div class="tc-icon">${t.icon}</div>
+      <div class="tc-name">${t.name}</div>
+      <div class="tc-ext">.${t.ext}</div>
+    </div>`).join('');
+}
+
+function selectNFType(ext) {
+  NF_TYPE = ext;
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('on'));
+  document.getElementById('tc-' + ext).classList.add('on');
+  const t = TYPES.find(t => t.ext === ext);
+  document.getElementById('nfHint').textContent = t ? `📄 .${ext} — ${t.name} dosyası oluşturulacak` : '';
+  document.getElementById('nfName').placeholder = 'dosya-adi';
+  document.getElementById('nfName').focus();
+}
+
+function openNewFile() {
+  NF_TYPE = null;
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('on'));
+  document.getElementById('nfName').value = '';
+  document.getElementById('nfHint').textContent = '';
+  openM('newFileModal');
+}
+
+async function doCreateFile() {
+  if (!NF_TYPE) { toast('⚠️ Dosya türü seç!', 'var(--yellow)'); return; }
+  let name = document.getElementById('nfName').value.trim();
+  if (!name) { toast('⚠️ Dosya adı gir!', 'var(--yellow)'); return; }
+  if (!name.endsWith('.' + NF_TYPE)) name += '.' + NF_TYPE;
+
+  const t = TYPES.find(t => t.ext === NF_TYPE);
+  const content = t ? t.tmpl : '';
+  
+  // Geçerli klasörün path'ini al
+  let currentPath = "";
+  if (BREADCRUMB.length > 0) {
+    const folder = findFile(BREADCRUMB[BREADCRUMB.length - 1].id);
+    if (folder && folder.path) {
+      currentPath = folder.path;
+    }
+  }
+  const filePath = currentPath ? currentPath + '/' + name : name;
+  
+  // Gerçek dosyayı oluştur
+  if (window.pywebview) {
+    try {
+      const result = await window.pywebview.api.write_file(filePath, content);
+      if (!result.success) {
+        toast('❌ Dosya oluşturulamadı: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Dosya oluşturma hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  const newFile = {
+    id: Date.now(),
+    name, type: NF_TYPE,
+    size: '0 B',
+    date: new Date().toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }),
+    source: 'local',
+    content: content,
+    path: filePath
+  };
+  addToCurrentFolder(newFile);
+  closeM('newFileModal');
+  toast('✨ Oluşturuldu: ' + name);
+  render();
+  setTimeout(() => openEditor(newFile.id), 100);
+}
+
+// ─────────────────────────────────────
+//  NEW FOLDER
+// ─────────────────────────────────────
+function openNewFolder() {
+  document.getElementById('nfoldName').value = '';
+  openM('folderModal');
+  setTimeout(() => document.getElementById('nfoldName').focus(), 80);
+}
+
+async function doCreateFolder() {
+  const name = document.getElementById('nfoldName').value.trim();
+  if (!name) { toast('⚠️ Klasör adı gir!', 'var(--yellow)'); return; }
+  
+  // Geçerli klasörün path'ini al
+  let currentPath = "";
+  if (BREADCRUMB.length > 0) {
+    const folder = findFile(BREADCRUMB[BREADCRUMB.length - 1].id);
+    if (folder && folder.path) {
+      currentPath = folder.path;
+    }
+  }
+  const folderPath = currentPath ? currentPath + '/' + name : name;
+  
+  // Gerçek klasörü oluştur
+  if (window.pywebview) {
+    try {
+      const result = await window.pywebview.api.create_folder(folderPath);
+      if (!result.success) {
+        toast('❌ Klasör oluşturulamadı: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Klasör oluşturma hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  const newF = { 
+    id: Date.now(), 
+    name, 
+    type: 'folder', 
+    size: '0 öğe', 
+    date: new Date().toLocaleDateString('tr-TR', {day:'numeric',month:'short',year:'numeric'}), 
+    source: 'local', 
+    children: [],
+    path: folderPath
+  };
+  addToCurrentFolder(newF);
+  closeM('folderModal');
+  toast('📁 Klasör oluşturuldu: ' + name);
+  render();
+}
+
+function addToCurrentFolder(item) {
+  if (BREADCRUMB.length > 0) {
+    const folder = findFile(BREADCRUMB[BREADCRUMB.length - 1].id);
+    if (folder) { folder.children = folder.children || []; folder.children.push(item); }
+  } else {
+    FILES.push(item);
+  }
+}
+
+// ─────────────────────────────────────
+//  DELETE
+// ─────────────────────────────────────
+function openDelete(id) {
+  DEL_ID = id;
+  const f = findFile(id);
+  document.getElementById('delMsg').textContent = `"${f?.name}" silinecek. Bu işlem geri alınamaz, emin misin?`;
+  openM('deleteModal');
+}
+
+async function doDelete() {
+  if (!DEL_ID) return;
+  const f = findFile(DEL_ID);
+  if (!f) return;
+  
+  // Gerçek dosyayı sil
+  if (f.path && window.pywebview) {
+    try {
+      const result = await window.pywebview.api.delete_file(f.path);
+      if (!result.success) {
+        toast('❌ Silme başarısız: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Silme hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  removeFile(DEL_ID);
+  toast('🗑 Silindi');
+  closeM('deleteModal');
+  DEL_ID = null;
+  if (SEL === DEL_ID) SEL = null;
+  render();
+}
+
+function removeFile(id) {
+  const idx = FILES.findIndex(f => f.id === id);
+  if (idx !== -1) { FILES.splice(idx, 1); return; }
+  FILES.forEach(f => {
+    if (f.children) {
+      const ci = f.children.findIndex(c => c.id === id);
+      if (ci !== -1) f.children.splice(ci, 1);
+    }
+  });
+}
+
+// ─────────────────────────────────────
+//  RENAME
+// ─────────────────────────────────────
+function openRename(id) {
+  REN_ID = id;
+  const f = findFile(id);
+  document.getElementById('rnInput').value = f?.name || '';
+  openM('renameModal');
+  setTimeout(() => { const el = document.getElementById('rnInput'); el.focus(); el.select(); }, 80);
+}
+
+async function doRename() {
+  const name = document.getElementById('rnInput').value.trim();
+  if (!name) { toast('⚠️ İsim boş olamaz!', 'var(--yellow)'); return; }
+  const f = findFile(REN_ID);
+  if (!f) return;
+  
+  // Geçerli klasörün path'ini al
+  let currentPath = "";
+  if (BREADCRUMB.length > 0) {
+    const folder = findFile(BREADCRUMB[BREADCRUMB.length - 1].id);
+    if (folder && folder.path) {
+      currentPath = folder.path + '/';
+    }
+  }
+  const oldPath = f.path;
+  const newPath = currentPath + name;
+  
+  // Gerçek dosyayı yeniden adlandır
+  if (oldPath && window.pywebview) {
+    try {
+      const result = await window.pywebview.api.rename_file(oldPath, newPath);
+      if (!result.success) {
+        toast('❌ Yeniden adlandırma başarısız: ' + (result.error || 'Bilinmeyen hata'), 'var(--red)');
+        return;
+      }
+    } catch (e) {
+      toast('❌ Yeniden adlandırma hatası: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+  
+  f.name = name;
+  f.path = newPath;
+  if (name.includes('.') && f.type !== 'folder') {
+    const ext = name.split('.').pop().toLowerCase();
+    f.type = EDITABLE_EXTS.has(ext) ? ext : (extToType(ext) || f.type);
+  }
+  toast('✅ Yeniden adlandırıldı');
+  closeM('renameModal');
+  REN_ID = null;
+  render();
+}
+
+// ─────────────────────────────────────
+//  PROPS
+// ─────────────────────────────────────
+function openProps(id) {
+  const f = findFile(id);
+  const rows = [
+    ['Ad', f.name],
+    ['Tür', f.type.toUpperCase()],
+    ['Boyut', f.size || '—'],
+    ['Tarih', f.date || '—'],
+    ['Kaynak', f.source === 'cloud' ? '☁️ Google Drive' : '💾 Yerel USB'],
+    ['Düzenlenebilir', isEditable(f) ? '✅ Evet' : '❌ Hayır'],
+    ['İçerik var', f.content !== undefined ? '✅ Evet' : '❌ Hayır'],
+  ];
+  document.getElementById('propsTable').innerHTML = rows.map(([k, v]) =>
+    `<div class="prop-row"><span class="prop-key">${k}</span><span class="prop-val">${v}</span></div>`
+  ).join('');
+  openM('propsModal');
+}
+
+// ─────────────────────────────────────
+//  UPLOAD
+// ─────────────────────────────────────
+function handleUpload(ev) {
+  const fs = Array.from(ev.target.files);
+  fs.forEach(file => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const sz = file.size < 1024 ? file.size + ' B'
+      : file.size < 1048576 ? (file.size/1024).toFixed(1) + ' KB'
+      : (file.size/1048576).toFixed(1) + ' MB';
+    const newF = {
+      id: Date.now() + Math.random(),
+      name: file.name,
+      type: EDITABLE_EXTS.has(ext) ? ext : (extToType(ext) || 'default'),
+      size: sz,
+      date: new Date().toLocaleDateString('tr-TR', {day:'numeric',month:'short',year:'numeric'}),
+      source: 'local',
+    };
+    if (EDITABLE_EXTS.has(ext)) {
+      const r = new FileReader();
+      r.onload = e => { newF.content = e.target.result; };
+      r.readAsText(file);
+    }
+    addToCurrentFolder(newF);
+  });
+  ev.target.value = '';
+  toast(`✅ ${fs.length} dosya yüklendi`);
+  render();
+}
+
+// ─────────────────────────────────────
+//  CONTEXT MENU
+// ─────────────────────────────────────
+function showCtx(e, id) {
+  e.preventDefault(); e.stopPropagation();
+  CTX_ID = id;
+  const f = findFile(id);
+  const menu = document.getElementById('ctxMenu');
+  document.getElementById('ctxOpen').style.display  = (f?.type === 'folder' || f?.source === 'cloud') ? 'flex' : 'none';
+  document.getElementById('ctxEdit').style.display  = isEditable(f) ? 'flex' : 'none';
+  menu.style.display = 'block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 190) + 'px';
+  menu.style.top  = Math.min(e.clientY, window.innerHeight - 200) + 'px';
+  document.getElementById('ctxOpen').onclick   = () => { hideCtx(); openF(id); };
+  document.getElementById('ctxEdit').onclick   = () => { hideCtx(); openEditor(id); };
+  document.getElementById('ctxRename').onclick = () => { hideCtx(); openRename(id); };
+  document.getElementById('ctxProps').onclick  = () => { hideCtx(); openProps(id); };
+  document.getElementById('ctxDelete').onclick = () => { hideCtx(); openDelete(id); };
+}
+
+function ctxBG(e) { e.preventDefault(); hideCtx(); }
+function hideCtx() { document.getElementById('ctxMenu').style.display = 'none'; }
+
+document.addEventListener('click', hideCtx);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { hideCtx(); closeAllM(); }
+  if (e.key === 'Delete' && SEL && !document.querySelector('.overlay:not(.hidden)')) openDelete(SEL);
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openNewFile(); }
+});
+
+// ─────────────────────────────────────
+//  GOOGLE DRIVE
+// ─────────────────────────────────────
+function saveCID() {
+  const val = document.getElementById('cidInput').value.trim();
+  if (!val.includes('.apps.googleusercontent.com')) { toast('⚠️ Geçerli Client ID gir!', 'var(--yellow)'); return; }
+  
+  // NATIVE_DESKTOP yerine Web uygulaması Client ID olmalı
+  if (val.includes('desktop')) {
+    toast('⚠️ Lütfen Google Cloud Console’da Web uygulaması için OAuth Client ID oluşturun, NATIVE_DESKTOP değil.', 'var(--yellow)');
+    return;
+  }
+
+  CLIENT_ID = val;
+  if (window.pywebview) {
+    window.pywebview.api.load_token().then(s =>
+      window.pywebview.api.save_token({ ...(s || {}), client_id: val }));
+  }
+  toast('✅ Client ID kaydedildi!');
+}
+
+function startDriveLogin() {
+  if (!CLIENT_ID) { toast('⚠️ Önce Client ID gir!', 'var(--yellow)'); return; }
+  const sc = document.createElement('script');
+  sc.src = 'https://accounts.google.com/gsi/client';
+  sc.onload = () => {
+    google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: async resp => {
+        if (resp.error) {
+          let message = '❌ Giriş başarısız: ' + resp.error;
+          if (resp.error_description && resp.error_description.toLowerCase().includes('storagerelay')) {
+            message = '❌ Yetkilendirme hatası: Lütfen Google Cloud Console’da Web uygulaması (Web application) OAuth Client ID oluşturun ve buraya girin. (NATIVE_DESKTOP uygun değil)';
+          }
+          toast(message, 'var(--red)');
+          return;
+        }
+        ACCESS_TOKEN = resp.access_token;
+        if (window.pywebview) {
+          const s = await window.pywebview.api.load_token() || {};
+          window.pywebview.api.save_token({ ...s, access_token: ACCESS_TOKEN });
+        }
+        onDriveConnected();
+        fetchDriveFiles();
+        closeM('driveModal');
+      }
+    }).requestAccessToken();
+  };
+  document.head.appendChild(sc);
+}
+
+function onDriveConnected() {
+  document.getElementById('cloudPill').classList.remove('hidden');
+  document.getElementById('driveConnBtn').classList.add('hidden');
+  document.getElementById('driveOutBtn').classList.remove('hidden');
+  toast('✅ Google Drive bağlandı!');
+}
+
+async function fetchDriveFiles() {
+  if (!ACCESS_TOKEN) return;
+  try {
+    const r = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=50&fields=files(id,name,mimeType,size,modifiedTime)&orderBy=modifiedTime desc',
+      { headers: { Authorization: 'Bearer ' + ACCESS_TOKEN } });
+    const d = await r.json();
+    FILES = FILES.filter(f => f.source !== 'cloud');
+    d.files.forEach(f => {
+      FILES.push({
+        id: 'dv_' + f.id, driveId: f.id,
+        name: f.name, type: mimeToType(f.mimeType),
+        size: f.size ? fmtSize(parseInt(f.size)) : '—',
+        date: fmtDate(f.modifiedTime),
+        source: 'cloud',
+        webViewLink: 'https://drive.google.com/file/d/' + f.id + '/view'
+      });
+    });
+    toast('☁️ ' + d.files.length + ' Drive dosyası yüklendi');
+    render();
+  } catch (e) { toast('❌ Drive yüklenemedi', 'var(--red)'); }
+}
+
+function driveLO() {
+  ACCESS_TOKEN = null;
+  FILES = FILES.filter(f => f.source !== 'cloud');
+  if (window.pywebview) window.pywebview.api.clear_token();
+  document.getElementById('cloudPill').classList.add('hidden');
+  document.getElementById('driveConnBtn').classList.remove('hidden');
+  document.getElementById('driveOutBtn').classList.add('hidden');
+  toast('Drive bağlantısı kesildi');
+  render();
+}
+
+// ─────────────────────────────────────
+//  MODAL HELPERS
+// ─────────────────────────────────────
+function openM(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeM(id) { document.getElementById(id).classList.add('hidden'); }
+function closeAllM() {
+  ['newFileModal','folderModal','editorModal','deleteModal','renameModal','propsModal','driveModal']
+    .forEach(closeM);
+}
+
+// ─────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────
+let toastTimer;
+function toast(msg, color = 'var(--green)') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = color;
+  t.style.color = color;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display = 'none', 2800);
+}
+
+// ─────────────────────────────────────
+//  UTILS
+// ─────────────────────────────────────
+// ─────────────────────────────────────
+//  LOAD FILES
+// ─────────────────────────────────────
+async function loadFiles(path = "") {
+  if (!window.pywebview) return;
+  try {
+    const result = await window.pywebview.api.list_files(path);
+    if (result.error) {
+      toast('❌ Dosyalar yüklenemedi: ' + result.error, 'var(--red)');
+      return;
+    }
+    if (path === "") {
+      FILES = result.map((f, idx) => ({ ...f, id: idx + 1 }));
+      // Klasörlerin children'ını yükle
+      for (const file of FILES) {
+        if (file.type === 'folder') {
+          const children = await loadFiles(file.path);
+          file.children = children || [];
+        }
+      }
+    } else {
+      return result.map((f, idx) => ({ ...f, id: Date.now() + idx }));
+    }
+  } catch (e) {
+    toast('❌ Dosya yükleme hatası: ' + e.message, 'var(--red)');
+  }
+}
+
+function findFile(id) {
+  const top = FILES.find(f => f.id === id);
+  if (top) return top;
+  for (const f of FILES) {
+    if (f.children) {
+      const c = f.children.find(c => c.id === id);
+      if (c) return c;
+      // 2 seviye derinlik
+      for (const cc of f.children) {
+        if (cc.children) {
+          const ccc = cc.children.find(x => x.id === id);
+          if (ccc) return ccc;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function getIcon(f) {
+  const map = {
+    folder:'📁', pdf:'📄', mp3:'🎵', wav:'🎵', aac:'🎵', audio:'🎵',
+    mp4:'🎬', avi:'🎬', mov:'🎬', video:'🎬',
+    jpg:'🖼️', jpeg:'🖼️', png:'🖼️', gif:'🖼️', webp:'🖼️', svg:'🖼️', image:'🖼️',
+    html:'🌐', css:'🎨', js:'⚡', ts:'🔷', json:'📦',
+    py:'🐍', md:'📋', xml:'📐', sql:'🗃', sh:'🖥', csv:'📊', txt:'📝',
+    doc:'📘', docx:'📘', xls:'📗', xlsx:'📗', ppt:'📙', pptx:'📙',
+    zip:'🗜️', rar:'🗜️', '7z':'🗜️', exe:'⚙️', dmg:'⚙️',
+  };
+  return map[f.type] || map[f.ext] || '📦';
+}
+
+function extToType(ext) {
+  const m = { jpg:'image', jpeg:'image', png:'image', gif:'image', webp:'image', svg:'image',
+    mp3:'audio', wav:'audio', aac:'audio', mp4:'video', avi:'video', mov:'video',
+    pdf:'pdf', doc:'doc', docx:'doc', xls:'xls', xlsx:'xls', ppt:'ppt', pptx:'ppt',
+    zip:'zip', rar:'zip', '7z':'zip', exe:'exe', dmg:'exe' };
+  return m[ext] || null;
+}
+
+function mimeToType(m) {
+  if (m.includes('folder'))       return 'folder';
+  if (m.includes('pdf'))          return 'pdf';
+  if (m.includes('audio'))        return 'audio';
+  if (m.includes('video'))        return 'video';
+  if (m.includes('image'))        return 'image';
+  if (m.includes('spreadsheet') || m.includes('excel')) return 'xls';
+  if (m.includes('document') || m.includes('word'))     return 'doc';
+  if (m.includes('presentation')) return 'ppt';
+  if (m.includes('zip') || m.includes('compressed'))    return 'zip';
+  if (m.includes('text'))         return 'txt';
+  return 'default';
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(1) + ' GB';
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sid(id) { return JSON.stringify(id); }
+
+// ─────────────────────────────────────
+//  START
+// ─────────────────────────────────────
+window.addEventListener('pywebviewready', init);
+setTimeout(init, 300);
+</script>
+</body>
+</html>
